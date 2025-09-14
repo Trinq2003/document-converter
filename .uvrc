@@ -1,0 +1,32 @@
+# uv configuration file
+# This file contains uv-specific settings
+
+# Use system Python if available
+system-python = true
+
+# Cache directory
+cache-dir = ".uv"
+
+# Index URL (use default PyPI)
+# index-url = "https://pypi.org/simple"
+
+# Extra index URLs for additional package sources
+# extra-index-url = []
+
+# Trusted hosts
+# trusted-hosts = []
+
+# Keyring provider
+# keyring-provider = "subprocess"
+
+# Python version to use
+# python = "3.11"
+
+# Resolver
+resolver = "highest"
+
+# Compile bytecode
+compile-bytecode = true
+
+# Generate hashes
+generate-hashes = true

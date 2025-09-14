@@ -1,0 +1,207 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "document-converter-api"
+version = "1.0.0"
+description = "Professional document conversion service that converts DOCX to Markdown with support for tables, math equations, and images"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "Document Converter Team", email = "team@example.com"},
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Text Processing :: Markup",
+    "Topic :: Office/Business",
+]
+requires-python = ">=3.11"
+dependencies = [
+    # FastAPI and web framework dependencies
+    "fastapi==0.104.1",
+    "uvicorn[standard]==0.24.0",
+    "python-multipart==0.0.6",
+    
+    # Pydantic for data validation and settings
+    "pydantic==2.5.0",
+    "pydantic-settings==2.1.0",
+    
+    # HTML processing and conversion
+    "beautifulsoup4==4.12.2",
+    "html2text==2020.1.16",
+    "lxml==4.9.3",
+    
+    # File handling and utilities
+    "python-magic==0.4.27",
+    "aiofiles==23.2.1",
+    
+    # Logging and monitoring
+    "structlog==23.2.0",
+    
+    # Security
+    "python-jose[cryptography]==3.3.0",
+    "passlib[bcrypt]==1.7.4",
+]
+
+[project.optional-dependencies]
+dev = [
+    # Development tools
+    "black==23.11.0",
+    "isort==5.12.0",
+    "flake8==6.1.0",
+    "mypy==1.7.1",
+    
+    # Testing
+    "pytest==7.4.3",
+    "pytest-asyncio==0.21.1",
+    "pytest-cov==4.1.0",
+    "httpx==0.25.2",
+    
+    # Documentation
+    "mkdocs==1.5.3",
+    "mkdocs-material==9.4.8",
+    
+    # Code quality
+    "pre-commit==3.6.0",
+    "bandit==1.7.5",
+]
+
+prod = [
+    # Production server
+    "gunicorn==21.2.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/your-org/document-converter-api"
+Documentation = "https://document-converter-api.readthedocs.io"
+Repository = "https://github.com/your-org/document-converter-api.git"
+Issues = "https://github.com/your-org/document-converter-api/issues"
+
+[project.scripts]
+document-converter = "app.main:main"
+
+[tool.uv]
+dev-dependencies = [
+    # Development tools
+    "black==23.11.0",
+    "isort==5.12.0",
+    "flake8==6.1.0",
+    "mypy==1.7.1",
+    
+    # Testing
+    "pytest==7.4.3",
+    "pytest-asyncio==0.21.1",
+    "pytest-cov==4.1.0",
+    "httpx==0.25.2",
+    
+    # Documentation
+    "mkdocs==1.5.3",
+    "mkdocs-material==9.4.8",
+    
+    # Code quality
+    "pre-commit==3.6.0",
+    "bandit==1.7.5",
+]
+
+[tool.black]
+line-length = 88
+target-version = ['py311']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+line_length = 88
+known_first_party = ["app"]
+known_third_party = ["fastapi", "pydantic", "uvicorn"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+
+[[tool.mypy.overrides]]
+module = [
+    "html2text.*",
+    "bs4.*",
+    "magic.*",
+]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "--verbose",
+    "--cov=app",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+    "--cov-report=xml",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+]
+
+[tool.coverage.run]
+source = ["app"]
+omit = [
+    "*/tests/*",
+    "*/test_*",
+    "*/__pycache__/*",
+    "*/migrations/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+
+[tool.bandit]
+exclude_dirs = ["tests", "test_*"]
+skips = ["B101", "B601"]
