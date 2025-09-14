@@ -29,8 +29,9 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
 
 # Create virtual environment and install dependencies
 COPY pyproject.toml ./
-# Copy LICENSE file for build
+# Copy LICENSE and README files for build
 COPY LICENSE ./
+COPY README.md ./
 RUN uv venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 # Copy lock file if it exists, otherwise generate it

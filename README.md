@@ -219,6 +219,12 @@ make lock          # Update lock file
 make docker-build  # Build Docker image with tags
 make docker-run    # Run Docker container
 make docker-images # List built Docker images
+make docker-compose-up     # Start services with Docker Compose
+make docker-compose-down   # Stop and remove services
+make docker-compose-logs   # View logs from all services
+make docker-dev           # Run development environment
+make docker-prod          # Run production environment
+make docker-clean         # Clean up Docker resources
 make clean         # Clean up temporary files
 ```
 
@@ -227,8 +233,21 @@ make clean         # Clean up temporary files
 ### Using Docker Compose
 
 ```bash
-# Production deployment with Nginx and Redis
-docker-compose --profile production up --build -d
+# Development environment
+make docker-dev           # Start development environment
+make docker-compose-logs  # View logs
+make docker-compose-down  # Stop services
+
+# Production environment
+make docker-prod          # Start production with Nginx and Redis
+make docker-prod-down     # Stop production environment
+
+# General Docker Compose commands
+make docker-compose-up     # Start services
+make docker-compose-down   # Stop and remove services
+make docker-compose-logs   # View logs from all services
+make docker-compose-restart # Restart all services
+make docker-compose-ps     # List running services
 ```
 
 ### Docker Image Tagging

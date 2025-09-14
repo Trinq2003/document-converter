@@ -23,8 +23,23 @@ help:
 	@echo "  docker-run   Run Docker container"
 	@echo "  docker-stop  Stop Docker container"
 	@echo "  docker-images List built Docker images"
-	@echo "  docker-dev   Run development with Docker Compose"
-	@echo "  docker-prod  Run production with Docker Compose"
+	@echo ""
+	@echo "Docker Compose:"
+	@echo "  docker-compose-up     Start services with Docker Compose"
+	@echo "  docker-compose-down   Stop and remove services"
+	@echo "  docker-compose-logs   View logs from all services"
+	@echo "  docker-compose-restart Restart all services"
+	@echo "  docker-compose-ps     List running services"
+	@echo ""
+	@echo "Environments:"
+	@echo "  docker-dev           Run development environment"
+	@echo "  docker-dev-detached  Run development environment in background"
+	@echo "  docker-prod          Run production environment"
+	@echo "  docker-prod-down     Stop production environment"
+	@echo ""
+	@echo "Cleanup:"
+	@echo "  docker-clean         Clean up Docker resources"
+	@echo "  docker-clean-all     Clean up all Docker resources (aggressive)"
 	@echo ""
 	@echo "Utilities:"
 	@echo "  clean        Clean up temporary files"
@@ -85,11 +100,44 @@ docker-stop:
 docker-images:
 	docker images document-converter-api
 
+# Docker Compose commands
+docker-compose-up:
+	docker-compose up --build
+
+docker-compose-down:
+	docker-compose down
+
+docker-compose-logs:
+	docker-compose logs -f
+
+docker-compose-restart:
+	docker-compose restart
+
+docker-compose-ps:
+	docker-compose ps
+
+# Development and production environments
 docker-dev:
 	docker-compose up --build
 
+docker-dev-detached:
+	docker-compose up --build -d
+
 docker-prod:
 	docker-compose --profile production up --build -d
+
+docker-prod-down:
+	docker-compose --profile production down
+
+# Docker cleanup
+docker-clean:
+	docker-compose down --volumes --remove-orphans
+	docker system prune -f
+
+docker-clean-all:
+	docker-compose down --volumes --remove-orphans
+	docker system prune -af
+	docker volume prune -f
 
 # Cleanup
 clean:
