@@ -35,19 +35,28 @@ class Logger:
         console_handler.setFormatter(formatter)
         logger.addHandler(console_handler)
         
-        # File handler
-        log_file = dir_manager.logs_dir / "document_converter.log"
-        file_handler = logging.FileHandler(log_file, encoding='utf-8')
-        file_handler.setLevel(logging.DEBUG)
-        file_handler.setFormatter(formatter)
-        logger.addHandler(file_handler)
-        
-        # Error file handler
-        error_log_file = dir_manager.logs_dir / "errors.log"
-        error_handler = logging.FileHandler(error_log_file, encoding='utf-8')
-        error_handler.setLevel(logging.ERROR)
-        error_handler.setFormatter(formatter)
-        logger.addHandler(error_handler)
+        # File handlers (only if logs directory exists)
+        try:
+            # Ensure logs directory exists
+            dir_manager.logs_dir.mkdir(parents=True, exist_ok=True)
+            
+            # File handler
+            log_file = dir_manager.logs_dir / "document_converter.log"
+            file_handler = logging.FileHandler(log_file, encoding='utf-8')
+            file_handler.setLevel(logging.DEBUG)
+            file_handler.setFormatter(formatter)
+            logger.addHandler(file_handler)
+            
+            # Error file handler
+            error_log_file = dir_manager.logs_dir / "errors.log"
+            error_handler = logging.FileHandler(error_log_file, encoding='utf-8')
+            error_handler.setLevel(logging.ERROR)
+            error_handler.setFormatter(formatter)
+            logger.addHandler(error_handler)
+            
+        except (OSError, PermissionError) as e:
+            # If we can't create file handlers, just use console logging
+            logger.warning(f"Could not setup file logging: {e}. Using console logging only.")
         
         return logger
     

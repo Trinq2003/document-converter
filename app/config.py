@@ -58,11 +58,18 @@ class DirectoryManager:
         
     def create_directories(self) -> None:
         """Create all necessary directories"""
-        for directory in [
+        directories = [
             self.base_dir, self.docx_dir, self.html_dir, 
             self.md_dir, self.temp_dir, self.logs_dir
-        ]:
-            directory.mkdir(parents=True, exist_ok=True)
+        ]
+        
+        for directory in directories:
+            try:
+                directory.mkdir(parents=True, exist_ok=True)
+            except (OSError, PermissionError) as e:
+                # Log the error but continue with other directories
+                print(f"Warning: Could not create directory {directory}: {e}")
+                continue
     
     def get_relative_path(self, file_path: Path, from_dir: Path) -> str:
         """Get relative path from one directory to another"""

@@ -102,7 +102,7 @@ docker-images:
 
 # Docker Compose commands
 docker-compose-up:
-	docker-compose up --build
+	docker-compose --profile development up --build
 
 docker-compose-down:
 	docker-compose down
@@ -118,10 +118,10 @@ docker-compose-ps:
 
 # Development and production environments
 docker-dev:
-	docker-compose up --build
+	docker-compose --profile development up --build
 
 docker-dev-detached:
-	docker-compose up --build -d
+	docker-compose --profile development up --build -d
 
 docker-prod:
 	docker-compose --profile production up --build -d
@@ -132,12 +132,9 @@ docker-prod-down:
 # Docker cleanup
 docker-clean:
 	docker-compose down --volumes --remove-orphans
-	docker system prune -f
 
 docker-clean-all:
 	docker-compose down --volumes --remove-orphans
-	docker system prune -af
-	docker volume prune -f
 
 # Cleanup
 clean:

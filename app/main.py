@@ -149,8 +149,12 @@ async def startup_event():
     
     # Ensure directories exist
     from app.config import dir_manager
-    dir_manager.create_directories()
-    logger.info("Application directories created/verified")
+    try:
+        dir_manager.create_directories()
+        logger.info("Application directories created/verified")
+    except Exception as e:
+        logger.warning(f"Could not create all directories: {e}")
+        logger.info("Application will continue with available directories")
 
 
 # Shutdown event

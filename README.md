@@ -228,13 +228,47 @@ make docker-clean         # Clean up Docker resources
 make clean         # Clean up temporary files
 ```
 
+## Development with Live Reloading
+
+The development environment is configured with live code reloading, so any changes you make to the source code will automatically be applied to the running container without needing to rebuild.
+
+### Development Setup
+
+```bash
+# Start development environment with live reloading
+make docker-dev
+
+# Or run in detached mode
+make docker-dev-detached
+
+# View logs
+make docker-compose-logs
+
+# Stop development environment
+make docker-compose-down
+```
+
+### How Live Reloading Works
+
+- The development container mounts your local `./app` directory into the container
+- Uvicorn runs with the `--reload` flag, watching for file changes
+- Any changes to Python files in the `app/` directory will trigger an automatic restart
+- The container uses the `development` profile with `DEBUG=true` and `LOG_LEVEL=DEBUG`
+
+### Testing Live Reloading
+
+1. Start the development environment: `make docker-dev`
+2. Make a change to any file in the `app/` directory
+3. Watch the logs to see the automatic reload: `make docker-compose-logs`
+4. Test the API: `python test_reload.py`
+
 ## Production Deployment
 
 ### Using Docker Compose
 
 ```bash
 # Development environment
-make docker-dev           # Start development environment
+make docker-dev           # Start development environment with live reload
 make docker-compose-logs  # View logs
 make docker-compose-down  # Stop services
 

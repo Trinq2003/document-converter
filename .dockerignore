@@ -58,8 +58,7 @@ html2md.py
 
 # Documentation
 docs/
-*.md
-README.md
+# Note: README.md and LICENSE are needed for build, so not ignoring them
 
 # Development
 .pytest_cache/

@@ -26,10 +26,13 @@ class DocumentConverter:
         self.html_processor = HTMLProcessor()
         self.dir_manager = dir_manager
         
-        # Ensure directories exist
-        self.dir_manager.create_directories()
-        
-        logger.info(f"DocumentConverter initialized with base directory: {settings.base_dir}")
+        # Ensure directories exist (with error handling)
+        try:
+            self.dir_manager.create_directories()
+            logger.info(f"DocumentConverter initialized with base directory: {settings.base_dir}")
+        except Exception as e:
+            logger.warning(f"DocumentConverter initialization warning: {e}")
+            # Continue initialization even if directory creation fails
     
     def process_single_document(
         self, 

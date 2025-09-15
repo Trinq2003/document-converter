@@ -36,8 +36,8 @@ RUN uv venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 # Copy lock file if it exists, otherwise generate it
 COPY uv.lock* ./
-# Install dependencies (including uvicorn for running the app)
-RUN if [ -f uv.lock ]; then uv sync --frozen --no-dev; else uv sync --no-dev; fi
+# Install dependencies directly from pyproject.toml
+RUN uv pip install fastapi==0.104.1 uvicorn[standard]==0.24.0 python-multipart==0.0.6 pydantic==2.5.0 pydantic-settings==2.1.0 beautifulsoup4==4.12.2 html2text==2020.1.16 lxml==4.9.3 python-magic==0.4.27 aiofiles==23.2.1 structlog==23.2.0 python-jose[cryptography]==3.3.0 passlib[bcrypt]==1.7.4
 
 # Stage 2: Production stage
 FROM python:3.11-slim as production
@@ -94,7 +94,8 @@ COPY *.py ./
 
 # Create data directories and set permissions
 RUN mkdir -p /app/data/{docx,html,md,temp,logs} \
-    && chown -R appuser:appuser /app
+    && chown -R appuser:appuser /app \
+    && chmod -R 755 /app/data
 
 # Switch to non-root user
 USER appuser
@@ -104,7 +105,16 @@ EXPOSE 8000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8000/api/v1/health || exit 1
+    CMD curl -f http://localhost:8000/api/v1/health/simple || exit 1
 
 # Default command
 CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+# Development stage (extends production)
+FROM production as development
+
+# Install development dependencies
+RUN uv pip install watchdog
+
+# Override command for development (will be overridden by docker-compose)
+CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

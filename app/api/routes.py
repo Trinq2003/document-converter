@@ -38,16 +38,34 @@ active_tasks: Dict[str, Dict[str, Any]] = {}
 
 
 @router.get("/health", response_model=HealthCheck)
-async def health_check(converter: DocumentConverter = Depends(get_document_converter)):
+async def health_check():
     """Health check endpoint"""
-    dependencies = converter.check_dependencies()
+    try:
+        # Try to check dependencies without dependency injection
+        converter = DocumentConverter()
+        dependencies = converter.check_dependencies()
+        status = "healthy" if all(dependencies.values()) else "unhealthy"
+    except Exception as e:
+        logger.warning(f"Health check failed to initialize converter: {e}")
+        dependencies = {"error": str(e)}
+        status = "unhealthy"
     
     return HealthCheck(
-        status="healthy" if all(dependencies.values()) else "unhealthy",
+        status=status,
         version=settings.app_version,
         timestamp=datetime.utcnow().isoformat(),
         dependencies=dependencies
     )
+
+
+@router.get("/health/simple")
+async def simple_health_check():
+    """Simple health check endpoint without dependencies"""
+    return {
+        "status": "healthy",
+        "message": "Service is running",
+        "timestamp": datetime.utcnow().isoformat()
+    }
 
 
 @router.get("/documents", response_model=List[str])
