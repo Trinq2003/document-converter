@@ -41,7 +41,7 @@ def create_app() -> FastAPI:
     
     app.add_middleware(
         TrustedHostMiddleware,
-        allowed_hosts=["*"] if settings.debug else ["yourdomain.com", "*.yourdomain.com"]
+        allowed_hosts=["*"] if settings.debug else ["yourdomain.com", "*.yourdomain.com","localhost", "127.0.0.1"]
     )
     
     # Add request logging middleware

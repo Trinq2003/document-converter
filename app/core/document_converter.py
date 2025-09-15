@@ -6,7 +6,7 @@ import time
 import uuid
 from pathlib import Path
 from typing import Dict, List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.core.logger import logger
 from app.core.pandoc_converter import PandocConverter
@@ -162,6 +162,9 @@ class DocumentConverter:
             result['status'] = ConversionStatus.COMPLETED
             result['completed_at'] = datetime.utcnow().isoformat()
             logger.info(f"Successfully processed document: {docx_filename} (Task ID: {task_id})")
+            
+            # Add filename to result for validation
+            result['filename'] = docx_filename
             
             return result
             

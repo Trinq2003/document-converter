@@ -205,3 +205,6 @@ exclude_lines = [
 [tool.bandit]
 exclude_dirs = ["tests", "test_*"]
 skips = ["B101", "B601"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
