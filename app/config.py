@@ -39,7 +39,17 @@ class Settings(BaseSettings):
     h2t_ignore_links: bool = Field(default=False, env="H2T_IGNORE_LINKS")
     h2t_ignore_images: bool = Field(default=True, env="H2T_IGNORE_IMAGES")
     h2t_unicode_snob: bool = Field(default=True, env="H2T_UNICODE_SNOB")
-    
+
+    # Security Configuration
+    secret_key: str = Field(default="your-secret-key-here", env="SECRET_KEY")
+    allowed_hosts: str = Field(default="localhost,127.0.0.1", env="ALLOWED_HOSTS")
+
+    # Database Configuration
+    database_url: str = Field(default="sqlite:///./document_converter.db", env="DATABASE_URL")
+
+    # Redis Configuration
+    redis_url: str = Field(default="redis://localhost:6379/0", env="REDIS_URL")
+
     class Config:
         env_file = ".env"
         case_sensitive = False
