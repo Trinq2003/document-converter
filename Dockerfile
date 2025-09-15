@@ -113,8 +113,17 @@ CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "
 # Development stage (extends production)
 FROM production as development
 
+# Copy uv binary from builder stage for development dependencies
+COPY --from=builder /bin/uv /bin/uv
+
+# Switch back to root to install development dependencies
+USER root
+
 # Install development dependencies
 RUN uv pip install watchdog
+
+# Switch back to non-root user
+USER appuser
 
 # Override command for development (will be overridden by docker-compose)
 CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
