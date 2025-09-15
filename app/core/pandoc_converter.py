@@ -50,8 +50,8 @@ class PandocConverter:
         # Create output directory
         html_path.parent.mkdir(parents=True, exist_ok=True)
         
-        # Setup images directory
-        images_path = html_path.parent / images_folder
+        # Setup images directory within the same output folder as HTML and MD
+        images_path = html_path.parent / "images"
         images_path.mkdir(parents=True, exist_ok=True)
         
         # Build Pandoc command
@@ -142,11 +142,11 @@ class PandocConverter:
                     if Path(src).is_absolute():
                         # Extract just the filename from absolute path
                         filename = Path(src).name
-                        new_src = f"{images_folder}/media/{filename}"
+                        new_src = f"images/{filename}"
                     else:
                         # Handle relative paths that might be incorrect
                         filename = Path(src).name
-                        new_src = f"{images_folder}/media/{filename}"
+                        new_src = f"images/{filename}"
                     
                     img['src'] = new_src
                     fixed_count += 1

@@ -64,8 +64,14 @@ class DocumentConverter:
         
         # Setup paths
         docx_path = self.dir_manager.docx_dir / docx_filename
-        html_path = self.dir_manager.html_dir / f"{Path(docx_filename).stem}.html"
-        md_path = self.dir_manager.md_dir / f"{Path(docx_filename).stem}.md"
+        docx_basename = Path(docx_filename).stem
+
+        # Create single folder-based output structure in md directory
+        output_folder = self.dir_manager.md_dir / docx_basename
+        output_folder.mkdir(parents=True, exist_ok=True)
+
+        html_path = output_folder / "main.html"
+        md_path = output_folder / "main.md"
         
         result = {
             'task_id': task_id,
@@ -87,7 +93,7 @@ class DocumentConverter:
             step_start = time.time()
             
             docx_result = self.pandoc_converter.convert_docx_to_html(
-                docx_path, html_path, 
+                docx_path, html_path,
                 include_toc=include_toc,
                 math_engine=math_engine
             )
@@ -154,9 +160,10 @@ class DocumentConverter:
                 'markdown': str(md_path)
             }
             
-            # Cleanup temporary files if requested
-            if cleanup_temp and settings.cleanup_temp_files:
-                self._cleanup_temp_files(html_path)
+            # Don't cleanup HTML files since they're now part of the final output structure
+            # (HTML and MD are both kept in the same folder)
+            # if cleanup_temp and settings.cleanup_temp_files:
+            #     self._cleanup_temp_files(html_path)
             
             # Success
             result['status'] = ConversionStatus.COMPLETED

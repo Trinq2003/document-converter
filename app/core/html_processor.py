@@ -65,7 +65,8 @@ class HTMLProcessor:
             soup = BeautifulSoup(html_content, 'html.parser')
             
             # Calculate correct image path for markdown file
-            correct_image_path = self._calculate_image_path_for_markdown(html_path, md_path, images_folder)
+            # Since HTML and MD are in the same folder, images are in "images" subfolder
+            correct_image_path = "images"
             
             # Extract special elements with corrected image paths
             table_placeholders, math_placeholders, image_list = self._extract_special_elements(
@@ -130,18 +131,18 @@ class HTMLProcessor:
     def _calculate_image_path_for_markdown(self, html_path: Path, md_path: Path, images_folder: str) -> str:
         """
         Calculate the correct image path for markdown file
-        
+
         Args:
             html_path: Original HTML file path
-            md_path: Target markdown file path  
+            md_path: Target markdown file path
             images_folder: Images folder name
-            
+
         Returns:
             str: Correct relative path to images folder for markdown
         """
         # Get the images folder path relative to HTML
         html_images_path = html_path.parent / images_folder
-        
+
         # Calculate relative path from MD file to images folder
         try:
             rel_path = os.path.relpath(html_images_path, md_path.parent)
@@ -208,7 +209,7 @@ class HTMLProcessor:
             # Fix image path if correct path provided
             if correct_image_path and src:
                 filename = Path(src).name
-                corrected_src = f"{correct_image_path}/media/{filename}"
+                corrected_src = f"{correct_image_path}/{filename}"
                 img['src'] = corrected_src
                 src = corrected_src
                 logger.debug(f"Corrected image path: {src}")
@@ -243,7 +244,7 @@ class HTMLProcessor:
             src = img.get('src', '')
             if src:
                 filename = Path(src).name
-                corrected_src = f"{correct_image_path}/media/{filename}"
+                corrected_src = f"{correct_image_path}/{filename}"
                 img['src'] = corrected_src
         
         return str(soup)
