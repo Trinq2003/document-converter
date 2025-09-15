@@ -86,10 +86,13 @@ class PandocConverter:
             
             # Fix image paths in HTML file
             self._fix_image_paths_in_html(html_path, images_folder)
-            
+
+            # Move images from media subfolder to images folder directly
+            self._flatten_image_structure(images_path)
+
             duration_ms = int((time.time() - start_time) * 1000)
             logger.info(f"Successfully converted DOCX to HTML in {duration_ms}ms. Extracted {image_count} images")
-            
+
             return {
                 'success': True,
                 'html_path': str(html_path),
@@ -113,6 +116,31 @@ class PandocConverter:
             error_msg = "Pandoc not found. Please install Pandoc first"
             logger.error(error_msg)
             return {'success': False, 'error': error_msg}
+
+    def _flatten_image_structure(self, images_path: Path):
+        """
+        Move images from media subfolder to images folder directly
+
+        Args:
+            images_path: Path to the images folder
+        """
+        try:
+            media_path = images_path / "media"
+
+            if media_path.exists() and media_path.is_dir():
+                # Move all files from media folder to images folder
+                for item in media_path.iterdir():
+                    if item.is_file():
+                        destination = images_path / item.name
+                        item.rename(destination)
+                        logger.debug(f"Moved {item} to {destination}")
+
+                # Remove empty media folder
+                media_path.rmdir()
+                logger.debug(f"Removed empty media folder: {media_path}")
+
+        except Exception as e:
+            logger.warning(f"Could not flatten image structure: {e}")
     
     def _fix_image_paths_in_html(self, html_path: Path, images_folder: str):
         """
