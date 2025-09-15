@@ -178,65 +178,43 @@ async def get_task_status(task_id: str):
     return active_tasks[task_id]
 
 
-@router.get("/download/{filename}")
-async def download_file(filename: str, file_type: str = "markdown"):
-    """Download converted file"""
+@router.get("/download/{basename}/{filename}")
+async def download_file(basename: str, filename: str):
+    """Download converted file from single folder structure"""
     try:
-        if file_type == "markdown":
-            file_path = dir_manager.md_dir / filename
-            if not file_path.exists():
-                # Try with .md extension
-                if not filename.endswith('.md'):
-                    file_path = dir_manager.md_dir / f"{Path(filename).stem}.md"
-        elif file_type == "html":
-            file_path = dir_manager.html_dir / filename
-            if not file_path.exists():
-                # Try with .html extension
-                if not filename.endswith('.html'):
-                    file_path = dir_manager.html_dir / f"{Path(filename).stem}.html"
-        else:
-            raise HTTPException(status_code=400, detail="Invalid file type")
-        
+        # Both files are now in the same folder: data/md/{basename}/
+        file_path = dir_manager.md_dir / basename / filename
+
         if not file_path.exists():
             raise HTTPException(status_code=404, detail="File not found")
-        
+
         return FileResponse(
             path=str(file_path),
-            filename=file_path.name,
+            filename=filename,
             media_type='application/octet-stream'
         )
-        
+
     except Exception as e:
         logger.error(f"Error downloading file: {e}")
         raise HTTPException(status_code=500, detail="Failed to download file")
 
 
-@router.delete("/documents/{filename}")
-async def delete_document(filename: str):
-    """Delete a document and its converted files"""
+@router.delete("/documents/{basename}")
+async def delete_document(basename: str):
+    """Delete a document and its converted folders"""
     try:
         # Delete DOCX file
-        docx_path = dir_manager.docx_dir / filename
+        docx_path = dir_manager.docx_dir / f"{basename}.docx"
         if docx_path.exists():
             docx_path.unlink()
-        
-        # Delete HTML file
-        html_path = dir_manager.html_dir / f"{Path(filename).stem}.html"
-        if html_path.exists():
-            html_path.unlink()
-        
-        # Delete Markdown file
-        md_path = dir_manager.md_dir / f"{Path(filename).stem}.md"
-        if md_path.exists():
-            md_path.unlink()
-        
-        # Delete images directory
-        images_path = dir_manager.html_dir / f"{Path(filename).stem}" / "images"
-        if images_path.exists():
-            shutil.rmtree(images_path)
-        
+
+        # Delete entire document folder (contains both HTML, MD, and images)
+        document_folder = dir_manager.md_dir / basename
+        if document_folder.exists():
+            shutil.rmtree(document_folder)
+
         return {"message": "Document deleted successfully"}
-        
+
     except Exception as e:
         logger.error(f"Error deleting document: {e}")
         raise HTTPException(status_code=500, detail="Failed to delete document")
