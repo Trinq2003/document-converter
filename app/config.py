@@ -65,12 +65,13 @@ class DirectoryManager:
         self.md_dir = self.base_dir / "md"
         self.temp_dir = self.base_dir / "temp"
         self.logs_dir = self.base_dir / "logs"
+        self.watermark_dir = self.base_dir / "watermark"
         
     def create_directories(self) -> None:
         """Create all necessary directories"""
         directories = [
-            self.base_dir, self.docx_dir, self.html_dir, 
-            self.md_dir, self.temp_dir, self.logs_dir
+            self.base_dir, self.docx_dir, self.html_dir,
+            self.md_dir, self.temp_dir, self.logs_dir, self.watermark_dir
         ]
         
         for directory in directories:

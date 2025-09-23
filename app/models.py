@@ -18,17 +18,17 @@ class ConversionStatus(str, Enum):
 
 class ConversionRequest(BaseModel):
     """Request model for document conversion"""
-    filename: str = Field(..., description="Name of the DOCX file to convert")
+    relative_path: str = Field(..., description="Relative path to DOCX file or folder in data/docx to convert")
     preserve_images: bool = Field(default=True, description="Whether to preserve images in output")
     include_toc: bool = Field(default=True, description="Whether to include table of contents")
     math_engine: str = Field(default="mathml", description="Math rendering engine")
     cleanup_temp: bool = Field(default=True, description="Whether to cleanup temporary files")
-    
-    @field_validator('filename')
+
+    @field_validator('relative_path')
     @classmethod
-    def validate_filename(cls, v):
-        if not v.endswith('.docx'):
-            raise ValueError('Filename must have .docx extension')
+    def validate_relative_path(cls, v):
+        if not v or v.startswith('/') or v.startswith('\\') or '..' in v:
+            raise ValueError('Relative path must not start with / or \\ and cannot contain ..')
         return v
     
     @field_validator('math_engine')
@@ -73,20 +73,20 @@ class ConversionResult(BaseModel):
 
 class BatchConversionRequest(BaseModel):
     """Request model for batch document conversion"""
-    filenames: List[str] = Field(..., description="List of DOCX filenames to convert")
+    relative_paths: List[str] = Field(..., description="List of relative paths to DOCX files or folders in data/docx to convert")
     preserve_images: bool = Field(default=True, description="Whether to preserve images in output")
     include_toc: bool = Field(default=True, description="Whether to include table of contents")
     math_engine: str = Field(default="mathml", description="Math rendering engine")
     cleanup_temp: bool = Field(default=True, description="Whether to cleanup temporary files")
-    
-    @field_validator('filenames')
+
+    @field_validator('relative_paths')
     @classmethod
-    def validate_filenames(cls, v):
+    def validate_relative_paths(cls, v):
         if not v:
-            raise ValueError('At least one filename must be provided')
-        for filename in v:
-            if not filename.endswith('.docx'):
-                raise ValueError(f'All filenames must have .docx extension: {filename}')
+            raise ValueError('At least one relative path must be provided')
+        for path in v:
+            if path.startswith('/') or path.startswith('\\') or '..' in path:
+                raise ValueError(f'Relative path must not start with / or \\ and cannot contain ..: {path}')
         return v
 
 
@@ -108,6 +108,33 @@ class HealthCheck(BaseModel):
     version: str = Field(..., description="API version")
     timestamp: str = Field(..., description="Health check timestamp")
     dependencies: Dict[str, str] = Field(..., description="Dependency status")
+
+
+class WatermarkRequest(BaseModel):
+    """Request model for watermarking documents"""
+    relative_path: str = Field(..., description="Relative path to file or folder to watermark")
+    preserve_structure: bool = Field(default=True, description="Whether to preserve directory structure in output")
+
+    @field_validator('relative_path')
+    @classmethod
+    def validate_relative_path(cls, v):
+        if not v or v.startswith('/') or v.startswith('\\') or '..' in v:
+            raise ValueError('Relative path must not start with / or \\ and cannot contain ..')
+        return v
+
+
+class WatermarkResult(BaseModel):
+    """Response model for watermark operation"""
+    task_id: str = Field(..., description="Unique task identifier")
+    status: str = Field(..., description="Operation status")
+    input_path: str = Field(..., description="Input relative path")
+    output_files: List[str] = Field(default_factory=list, description="Generated watermarked files")
+    total_files: int = Field(..., description="Total number of files processed")
+    success_count: int = Field(default=0, description="Number of successfully watermarked files")
+    failed_files: List[str] = Field(default_factory=list, description="List of files that failed to watermark")
+    error: Optional[str] = Field(None, description="Error message if operation failed")
+    created_at: str = Field(..., description="Task creation timestamp")
+    completed_at: Optional[str] = Field(None, description="Task completion timestamp")
 
 
 class ErrorResponse(BaseModel):

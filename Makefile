@@ -124,7 +124,7 @@ docker-dev-detached:
 	docker-compose --profile development up --build -d
 
 docker-prod:
-	docker-compose --profile production up --build -d
+	docker-compose --profile production up -d
 
 docker-prod-down:
 	docker-compose --profile production down

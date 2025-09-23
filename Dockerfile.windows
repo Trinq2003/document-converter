@@ -1,0 +1,56 @@
+# Windows-based Dockerfile for Document Converter API (with watermark support)
+FROM mcr.microsoft.com/windows/servercore:ltsc2022
+
+# Set shell to PowerShell
+SHELL ["powershell", "-Command", "$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';"]
+
+# Install Chocolatey
+RUN Set-ExecutionPolicy Bypass -Scope Process -Force; \
+    [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; \
+    iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
+
+# Install Python
+RUN choco install python311 -y --params "/InstallDir:C:\Python"
+
+# Add Python to PATH
+RUN setx /M PATH "%PATH%;C:\Python;C:\Python\Scripts"
+
+# Install Git (for potential dependency installation)
+RUN choco install git -y
+
+# Set working directory
+WORKDIR C:\app
+
+# Copy requirements first for better caching
+COPY pyproject.toml ./
+
+# Install Python dependencies
+RUN python -m pip install --upgrade pip; \
+    pip install -e .[windows]
+
+# Install Pandoc for Windows
+RUN choco install pandoc -y
+
+# Copy application code
+COPY app/ ./app/
+COPY *.py ./
+
+# Create data directories
+RUN New-Item -ItemType Directory -Force -Path C:\app\data\docx, C:\app\data\html, C:\app\data\md, C:\app\data\temp, C:\app\data\logs, C:\app\data\watermark
+
+# Create non-admin user (Windows equivalent)
+RUN net user appuser /add /passwordreq:no; \
+    net localgroup "Users" appuser /add
+
+# Set permissions (basic - Windows has different permission model)
+RUN icacls "C:\app\data" /grant "appuser:(OI)(CI)F" /T
+
+# Expose port
+EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+    CMD powershell -Command "try { Invoke-WebRequest -Uri 'http://localhost:8000/api/v1/health/simple' -UseBasicParsing } catch { exit 1 }"
+
+# Default command
+CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

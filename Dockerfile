@@ -2,6 +2,10 @@
 # Stage 1: Build stage
 FROM python:3.11-slim as builder
 
+# Check if we're building for Windows containers
+ARG TARGET_PLATFORM=linux
+ENV TARGET_PLATFORM=${TARGET_PLATFORM}
+
 # Build arguments
 ARG BUILD_DATE
 ARG GIT_COMMIT
@@ -37,7 +41,7 @@ ENV PATH="/opt/venv/bin:$PATH"
 # Copy lock file if it exists, otherwise generate it
 COPY uv.lock* ./
 # Install dependencies directly from pyproject.toml
-RUN uv pip install fastapi==0.104.1 uvicorn[standard]==0.24.0 python-multipart==0.0.6 pydantic==2.5.0 pydantic-settings==2.1.0 beautifulsoup4==4.12.2 html2text==2020.1.16 lxml==4.9.3 python-magic==0.4.27 aiofiles==23.2.1 structlog==23.2.0 python-jose[cryptography]==3.3.0 passlib[bcrypt]==1.7.4
+RUN uv pip install fastapi==0.104.1 uvicorn[standard]==0.24.0 python-multipart==0.0.6 pydantic==2.5.0 pydantic-settings==2.1.0 beautifulsoup4==4.12.2 html2text==2020.1.16 lxml==4.9.3 python-magic==0.4.27 aiofiles==23.2.1 structlog==23.2.0 python-jose[cryptography]==3.3.0 passlib[bcrypt]==1.7.4 python-docx==1.1.0
 
 # Stage 2: Production stage
 FROM python:3.11-slim as production
@@ -120,7 +124,11 @@ COPY --from=builder /bin/uv /bin/uv
 USER root
 
 # Install development dependencies
-RUN uv pip install watchdog
+RUN uv pip install watchdog && \
+    # Install pywin32 only if building for Windows containers
+    if [ "$TARGET_PLATFORM" = "windows" ]; then \
+        uv pip install pywin32; \
+    fi
 
 # Switch back to non-root user
 USER appuser
