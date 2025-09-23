@@ -9,7 +9,7 @@ import asyncio
 import uuid
 import shutil
 from datetime import datetime
-from pathlib import Path
+from pathlib import Path, Path as PathlibPath
 
 from app.api.dependencies import (
     get_document_converter,
@@ -22,7 +22,7 @@ from app.api.dependencies import (
 from app.core.document_converter import DocumentConverter
 from app.core.logger import logger
 from app.config import settings, dir_manager
-from app.watermark import add_watermarks_to_docx
+from app.watermark import add_watermarks_to_docx, add_watermarks_batch
 from app.models import (
     ConversionRequest,
     ConversionResult,
@@ -269,7 +269,7 @@ async def delete_document(basename: str):
 async def add_watermark(
     request: WatermarkRequest = Depends(validate_watermark_request)
 ):
-    """Add watermarks to DOCX documents"""
+    """Add watermarks to DOCX documents with parallel processing and progress tracking"""
     try:
         task_id = str(uuid.uuid4())
         created_at = datetime.utcnow().isoformat()
@@ -286,33 +286,55 @@ async def add_watermark(
             docx_files = list(input_path.glob("**/*.docx"))
 
         total_files = len(docx_files)
+
+        if total_files == 0:
+            return WatermarkResult(
+                task_id=task_id,
+                status="completed",
+                input_path=request.relative_path,
+                output_files=[],
+                total_files=0,
+                success_count=0,
+                failed_files=[],
+                error="No .docx files found",
+                created_at=created_at,
+                completed_at=datetime.utcnow().isoformat()
+            )
+
+        # Prepare file pairs for batch processing
+        file_pairs = []
+        for docx_file in docx_files:
+            # Calculate relative path from docx directory
+            relative_path = docx_file.relative_to(dir_manager.docx_dir)
+
+            # Create output path in watermark directory
+            if request.preserve_structure:
+                output_file = dir_manager.watermark_dir / relative_path
+            else:
+                # Flatten structure - just use filename
+                output_file = dir_manager.watermark_dir / docx_file.name
+
+            file_pairs.append((str(docx_file), str(output_file)))
+
+        # Process files in parallel with progress tracking
+        logger.info(f"Starting parallel watermark processing for {total_files} files")
+        results = add_watermarks_batch(file_pairs, max_workers=None)  # Auto-detect CPU count
+
+        # Process results
         success_count = 0
         failed_files = []
         output_files = []
 
-        for docx_file in docx_files:
-            try:
-                # Calculate relative path from docx directory
-                relative_path = docx_file.relative_to(dir_manager.docx_dir)
-
-                # Create output path in watermark directory
-                if request.preserve_structure:
-                    output_file = dir_manager.watermark_dir / relative_path
-                    output_file.parent.mkdir(parents=True, exist_ok=True)
-                else:
-                    # Flatten structure - just use filename
-                    output_file = dir_manager.watermark_dir / docx_file.name
-
-                # Add watermark
-                add_watermarks_to_docx(str(docx_file), str(output_file))
-
+        for input_path, success, error_msg in results:
+            if success:
+                # Calculate relative path for output
+                relative_path = Path(input_path).relative_to(dir_manager.docx_dir)
                 output_files.append(str(relative_path))
                 success_count += 1
                 logger.info(f"Successfully watermarked: {relative_path}")
-
-            except Exception as e:
-                failed_files.append(str(docx_file.relative_to(dir_manager.docx_dir)))
-                logger.error(f"Failed to watermark {docx_file}: {e}")
+            else:
+                failed_files.append(str(Path(input_path).relative_to(dir_manager.docx_dir)))
+                logger.error(f"Failed to watermark {input_path}: {error_msg}")
 
         status = "completed" if success_count > 0 else "failed"
         error = None
@@ -334,6 +356,7 @@ async def add_watermark(
             completed_at=datetime.utcnow().isoformat()
         )
 
+        logger.info(f"Watermark batch completed: {success_count}/{total_files} files processed successfully")
         return result
 
     except Exception as e:

@@ -2,6 +2,18 @@ import argparse
 import os
 from datetime import datetime
 import platform
+from concurrent.futures import ProcessPoolExecutor, as_completed
+from typing import List, Tuple
+import multiprocessing
+
+try:
+    from tqdm import tqdm
+    TQDM_AVAILABLE = True
+except ImportError:
+    TQDM_AVAILABLE = False
+    # Create dummy tqdm function
+    def tqdm(iterable=None, **kwargs):
+        return iterable if iterable is not None else iter([])
 
 # Windows-specific imports - only available on Windows
 try:
@@ -147,6 +159,86 @@ def add_watermarks_to_docx(input_path: str, output_path: str) -> None:
                 f"For Linux: install python-docx with 'pip install python-docx'. "
                 f"Original error: {e}"
             )
+
+
+def process_single_file(args: Tuple[str, str, str]) -> Tuple[str, bool, str]:
+    """
+    Process a single file for parallel execution.
+
+    Args:
+        args: Tuple of (input_path, output_path, method)
+
+    Returns:
+        Tuple of (input_path, success, error_message)
+    """
+    input_path, output_path, method = args
+
+    try:
+        # Ensure output directory exists
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+        if method == "windows" and WINDOWS_AVAILABLE:
+            _add_watermarks_windows(input_path, output_path)
+        else:
+            _add_watermarks_basic(input_path, output_path)
+
+        return input_path, True, ""
+    except Exception as e:
+        return input_path, False, str(e)
+
+
+def add_watermarks_batch(file_pairs: List[Tuple[str, str]], max_workers: int = None) -> List[Tuple[str, bool, str]]:
+    """
+    Add watermarks to multiple files in parallel with progress tracking.
+
+    Args:
+        file_pairs: List of (input_path, output_path) tuples
+        max_workers: Maximum number of parallel workers (default: CPU count)
+
+    Returns:
+        List of (input_path, success, error_message) tuples
+    """
+    if max_workers is None:
+        max_workers = min(multiprocessing.cpu_count(), len(file_pairs))
+
+    # Determine method based on availability
+    method = "windows" if WINDOWS_AVAILABLE else "basic"
+
+    # Prepare arguments for parallel processing
+    args_list = [(input_path, output_path, method) for input_path, output_path in file_pairs]
+
+    results = []
+
+    # Use ProcessPoolExecutor for CPU-bound tasks (Word COM operations)
+    with ProcessPoolExecutor(max_workers=max_workers) as executor:
+        # Submit all tasks
+        future_to_args = {
+            executor.submit(process_single_file, args): args
+            for args in args_list
+        }
+
+        # Process results with progress bar
+        with tqdm(total=len(file_pairs), desc="Adding watermarks", unit="file") as pbar:
+            for future in as_completed(future_to_args):
+                args = future_to_args[future]
+                try:
+                    result = future.result()
+                    results.append(result)
+
+                    input_path, success, error_msg = result
+                    if success:
+                        pbar.set_postfix_str(f"✅ {os.path.basename(input_path)}")
+                    else:
+                        pbar.set_postfix_str(f"❌ {os.path.basename(input_path)}: {error_msg}")
+
+                except Exception as exc:
+                    input_path = args[0]
+                    results.append((input_path, False, str(exc)))
+                    pbar.set_postfix_str(f"❌ {os.path.basename(input_path)}: {str(exc)}")
+
+                pbar.update(1)
+
+    return results
 
 
 def _add_watermarks_windows(input_path: str, output_path: str) -> None:

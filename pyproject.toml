@@ -45,6 +45,7 @@ dependencies = [
     # File handling and utilities
     "python-magic==0.4.27",
     "aiofiles==23.2.1",
+    "tqdm==4.66.1",
     
     # Logging and monitoring
     "structlog==23.2.0",
