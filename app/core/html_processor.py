@@ -84,16 +84,13 @@ class HTMLProcessor:
             
             # Restore special elements
             markdown_content = self._restore_special_elements(
-                markdown_content, table_placeholders, math_placeholders
+                markdown_content, table_placeholders, math_placeholders, image_list
             )
             
             # Clean up formatting
             markdown_content = self._clean_markdown_content(markdown_content)
-            
-            # Add image appendix if images exist
-            if settings.preserve_images and image_list:
-                image_appendix = self._create_image_appendix(image_list)
-                markdown_content += image_appendix
+
+            # Images are now inline in the markdown content, no appendix needed
             
             # Create output directory
             md_path.parent.mkdir(parents=True, exist_ok=True)
@@ -153,77 +150,275 @@ class HTMLProcessor:
         except ValueError:
             # If paths are on different drives (Windows), use absolute path
             return str(html_images_path).replace('\\', '/')
-    
+
+    def _convert_table_to_markdown(self, table) -> Tuple[str, List[Dict]]:
+        """
+        Convert HTML table to markdown table format, preserving images within cells
+
+        Args:
+            table: BeautifulSoup table element
+
+        Returns:
+            Tuple[str, List[Dict]]: (Markdown table, list of images found in table)
+        """
+        try:
+            rows = table.find_all('tr')
+            if not rows:
+                return "", []
+
+            table_images = []
+
+            # Process header row
+            header_cells = []
+            if rows:
+                header_row = rows[0]
+                for cell in header_row.find_all(['th', 'td']):
+                    cell_content, cell_images = self._process_table_cell_content(cell)
+                    header_cells.append(cell_content)
+                    table_images.extend(cell_images)
+
+            # Process data rows
+            data_rows = []
+            for row in rows[1:] if header_cells else rows:
+                row_cells = []
+                for cell in row.find_all(['th', 'td']):
+                    cell_content, cell_images = self._process_table_cell_content(cell)
+                    row_cells.append(cell_content)
+                    table_images.extend(cell_images)
+                if row_cells:  # Only add non-empty rows
+                    data_rows.append(row_cells)
+
+            if not header_cells and not data_rows:
+                return "", []
+
+            # Create markdown table
+            markdown_lines = []
+
+            # Add header
+            if header_cells:
+                markdown_lines.append("| " + " | ".join(header_cells) + " |")
+                markdown_lines.append("| " + " | ".join(["---"] * len(header_cells)) + " |")
+
+            # Add data rows
+            all_rows = ([header_cells] if not header_cells and data_rows else []) + data_rows
+            if not header_cells and all_rows:
+                # If no header, make first row the header
+                markdown_lines.append("| " + " | ".join(all_rows[0]) + " |")
+                markdown_lines.append("| " + " | ".join(["---"] * len(all_rows[0])) + " |")
+                all_rows = all_rows[1:]
+
+            for row in all_rows:
+                if len(row) == len(header_cells if header_cells else len(all_rows[0] if all_rows else 0)):
+                    markdown_lines.append("| " + " | ".join(row) + " |")
+
+            return "\n".join(markdown_lines) + "\n\n", table_images
+
+        except Exception as e:
+            logger.warning(f"Error converting table to markdown: {e}")
+            return "", []
+
+    def _process_table_cell_content(self, cell) -> Tuple[str, List[Dict]]:
+        """
+        Process table cell content, converting images to markdown while preserving text
+
+        Args:
+            cell: BeautifulSoup cell element (th or td)
+
+        Returns:
+            Tuple[str, List[Dict]]: (Cell content with images converted to markdown, list of images found)
+        """
+        try:
+            # Clone the cell to avoid modifying the original
+            cell_copy = BeautifulSoup(str(cell), 'html.parser').find(['th', 'td'])
+
+            cell_images = []
+
+            # Find all images in this cell
+            images = cell_copy.find_all('img') if cell_copy else []
+
+            # Convert each image to markdown and collect image info
+            for img in images:
+                src = img.get('src', '')
+                alt = img.get('alt', '')
+                title = img.get('title', '')
+
+                # Convert to markdown image syntax
+                if title:
+                    markdown_img = f'![{alt}]({src} "{title}")'
+                else:
+                    markdown_img = f'![{alt}]({src})'
+
+                # Collect image info for the main image list
+                img_info = {
+                    'src': src,
+                    'alt': alt,
+                    'title': title,
+                    'filename': Path(src).name if src else '',
+                    'markdown': markdown_img,
+                    'placeholder': '',  # Will be set later in the main processing
+                    'in_table': True  # Mark that this image was found in a table
+                }
+                cell_images.append(img_info)
+
+                # Replace img tag with markdown
+                img.replace_with(markdown_img)
+
+            # Get the processed text content
+            content = cell_copy.get_text(strip=True) if cell_copy else ""
+
+            return content, cell_images
+
+        except Exception as e:
+            logger.warning(f"Error processing table cell content: {e}")
+            # Fallback to simple text extraction
+            return cell.get_text(strip=True), []
+
+    def _convert_math_to_markdown(self, math_element) -> str:
+        """
+        Convert HTML math element to markdown/latex format
+
+        Args:
+            math_element: BeautifulSoup math element
+
+        Returns:
+            str: Markdown math notation
+        """
+        try:
+            # Check for LaTeX content in attributes or text
+            latex_content = ""
+
+            # Try to extract from data-latex or similar attributes
+            if hasattr(math_element, 'attrs'):
+                latex_attrs = ['data-latex', 'data-tex', 'latex', 'tex']
+                for attr in latex_attrs:
+                    if attr in math_element.attrs:
+                        latex_content = math_element.attrs[attr]
+                        break
+
+            # If no latex attribute, try to extract from text content
+            if not latex_content:
+                text_content = math_element.get_text(strip=True)
+                if text_content:
+                    # Remove common HTML math delimiters and clean up
+                    latex_content = re.sub(r'[\\$]+', '', text_content)
+                    latex_content = latex_content.strip()
+
+            # If still no content, try to extract from annotation or other child elements
+            if not latex_content:
+                # Look for mathml annotation
+                annotation = math_element.find('annotation', encoding='application/x-tex')
+                if annotation:
+                    latex_content = annotation.get_text(strip=True)
+
+                # Or look for semantics with annotation
+                semantics = math_element.find('semantics')
+                if semantics:
+                    annotation = semantics.find('annotation', encoding='application/x-tex')
+                    if annotation:
+                        latex_content = annotation.get_text(strip=True)
+
+            # Clean up the latex content
+            if latex_content:
+                # Clean up the latex content - remove extra backslashes but keep necessary ones
+                latex_content = latex_content.strip()
+
+                # Wrap in appropriate markdown math delimiters
+                if latex_content.startswith('$$') or latex_content.endswith('$$'):
+                    return latex_content
+                elif latex_content.startswith('$') or latex_content.endswith('$'):
+                    return latex_content
+                elif '\n' in latex_content or len(latex_content) > 50:
+                    # Multi-line or long equation -> display math
+                    return f"$$\n{latex_content}\n$$"
+                else:
+                    # Inline math
+                    return f"${latex_content}$"
+            else:
+                # Fallback: return the original HTML
+                return str(math_element)
+
+        except Exception as e:
+            logger.warning(f"Error converting math to markdown: {e}")
+            return str(math_element)
+
     def _extract_special_elements(self, soup: BeautifulSoup, correct_image_path: str = None) -> Tuple[Dict, Dict, List]:
         """
-        Extract and replace tables, math elements, and collect images
-        
+        Extract and convert tables, math elements, and images to markdown format
+
         Args:
             soup: Parsed HTML content
             correct_image_path: Correct relative path to images folder
-            
+
         Returns:
             Tuple: (table_placeholders, math_placeholders, image_list)
         """
         table_placeholders = {}
         math_placeholders = {}
         image_list = []
-        
-        # Extract tables
+
+        # Convert tables to markdown (this also handles images within tables)
         tables = soup.find_all('table')
         logger.debug(f"Found {len(tables)} tables")
-        
+
         for i, table in enumerate(tables):
             placeholder = f"___TABLE_PLACEHOLDER_{i}___"
-            table_html = str(table)
-            # Clean up table HTML while preserving structure
-            table_html = re.sub(r'\n\s*\n', '\n', table_html)
-            table_html = re.sub(r'>\s+<', '><', table_html)
-            
-            # Fix image paths within tables if needed
-            if correct_image_path:
-                table_html = self._fix_image_paths_in_content(table_html, correct_image_path)
-            
-            table_placeholders[placeholder] = table_html
+            markdown_table, table_images = self._convert_table_to_markdown(table)
+            table_placeholders[placeholder] = markdown_table
+            # Add images found in this table to the main image list
+            image_list.extend(table_images)
             table.replace_with(placeholder)
-            logger.debug(f"Extracted table {i}")
-        
-        # Extract math elements
+            logger.debug(f"Converted table {i} to markdown with {len(table_images)} images")
+
+        # Convert math elements to markdown/latex
         math_elements = soup.find_all(['math', 'span'], class_=lambda x: x and 'math' in str(x).lower())
         math_elements.extend(soup.find_all('math'))
-        
+
         logger.debug(f"Found {len(math_elements)} math elements")
-        
+
         for i, math in enumerate(math_elements):
             placeholder = f"___MATH_PLACEHOLDER_{i}___"
-            math_html = str(math)
-            math_placeholders[placeholder] = math_html
+            markdown_math = self._convert_math_to_markdown(math)
+            math_placeholders[placeholder] = markdown_math
             math.replace_with(placeholder)
-            logger.debug(f"Extracted math element {i}")
-        
-        # Collect and fix images
+            logger.debug(f"Converted math element {i} to markdown")
+
+        # Convert remaining images to markdown (those not in tables)
         images = soup.find_all('img')
         for img in images:
             src = img.get('src', '')
-            
+
             # Fix image path if correct path provided
             if correct_image_path and src:
                 filename = Path(src).name
                 corrected_src = f"{correct_image_path}/{filename}"
-                img['src'] = corrected_src
                 src = corrected_src
                 logger.debug(f"Corrected image path: {src}")
-            
+
+            # Convert to markdown image syntax
+            alt = img.get('alt', '')
+            title = img.get('title', '')
+
+            if title:
+                markdown_img = f'![{alt}]({src} "{title}")'
+            else:
+                markdown_img = f'![{alt}]({src})'
+
+            # Create placeholder for the image
+            placeholder = f"___IMAGE_PLACEHOLDER_{len(image_list)}___"
             img_info = {
                 'src': src,
-                'alt': img.get('alt', ''),
-                'title': img.get('title', ''),
+                'alt': alt,
+                'title': title,
                 'filename': Path(src).name if src else '',
-                'tag': str(img)
+                'markdown': markdown_img,
+                'placeholder': placeholder
             }
             image_list.append(img_info)
-            logger.debug(f"Found image: {img_info['src']}")
-        
+
+            # Replace img tag with placeholder
+            img.replace_with(placeholder)
+            logger.debug(f"Converted image to markdown: {src}")
+
         return table_placeholders, math_placeholders, image_list
     
     def _fix_image_paths_in_content(self, content: str, correct_image_path: str) -> str:
@@ -249,29 +444,39 @@ class HTMLProcessor:
         
         return str(soup)
     
-    def _restore_special_elements(self, markdown_content: str, table_placeholders: Dict, 
-                                math_placeholders: Dict) -> str:
+    def _restore_special_elements(self, markdown_content: str, table_placeholders: Dict,
+                                math_placeholders: Dict, image_list: List = None) -> str:
         """
-        Restore tables and math elements in markdown content
-        
+        Restore tables, math elements, and images in markdown content
+
         Args:
             markdown_content: Converted markdown content
-            table_placeholders: Table placeholders and HTML
-            math_placeholders: Math placeholders and HTML
-            
+            table_placeholders: Table placeholders and markdown
+            math_placeholders: Math placeholders and markdown
+            image_list: List of image info with placeholders
+
         Returns:
             str: Markdown content with restored elements
         """
         # Restore tables
-        for placeholder, table_html in table_placeholders.items():
-            markdown_content = markdown_content.replace(placeholder, f'\n{table_html}\n')
+        for placeholder, table_markdown in table_placeholders.items():
+            markdown_content = markdown_content.replace(placeholder, f'\n{table_markdown}')
             logger.debug(f"Restored table: {placeholder}")
-        
-        # Restore math elements  
-        for placeholder, math_html in math_placeholders.items():
-            markdown_content = markdown_content.replace(placeholder, f'{math_html}')
+
+        # Restore math elements
+        for placeholder, math_markdown in math_placeholders.items():
+            markdown_content = markdown_content.replace(placeholder, math_markdown)
             logger.debug(f"Restored math element: {placeholder}")
-        
+
+        # Restore images
+        if image_list:
+            for img_info in image_list:
+                placeholder = img_info.get('placeholder', '')
+                markdown_img = img_info.get('markdown', '')
+                if placeholder and markdown_img:
+                    markdown_content = markdown_content.replace(placeholder, markdown_img)
+                    logger.debug(f"Restored image: {placeholder}")
+
         return markdown_content
     
     def _clean_markdown_content(self, content: str) -> str:
