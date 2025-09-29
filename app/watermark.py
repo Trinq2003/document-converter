@@ -187,58 +187,132 @@ def process_single_file(args: Tuple[str, str, str]) -> Tuple[str, bool, str]:
         return input_path, False, str(e)
 
 
-def add_watermarks_batch(file_pairs: List[Tuple[str, str]], max_workers: int = None) -> List[Tuple[str, bool, str]]:
+def process_single_file_sequential(args: Tuple[str, str]) -> Tuple[str, bool, str]:
     """
-    Add watermarks to multiple files in parallel with progress tracking.
+    Process a single file sequentially, ensuring complete processing and cleanup before returning.
+
+    Args:
+        args: Tuple of (input_path, output_path)
+
+    Returns:
+        Tuple of (input_path, success, error_message)
+    """
+    input_path, output_path = args
+
+    try:
+        # Ensure output directory exists
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+        # Determine method based on availability
+        method = "windows" if WINDOWS_AVAILABLE else "basic"
+
+        if method == "windows" and WINDOWS_AVAILABLE:
+            _add_watermarks_windows(input_path, output_path)
+        else:
+            _add_watermarks_basic(input_path, output_path)
+
+        # Force garbage collection to ensure COM objects are cleaned up
+        import gc
+        gc.collect()
+
+        return input_path, True, ""
+    except Exception as e:
+        # Also force garbage collection on error
+        import gc
+        gc.collect()
+        return input_path, False, str(e)
+
+
+def add_watermarks_batch(file_pairs: List[Tuple[str, str]], max_workers: int = None, max_retries: int = 3) -> List[Tuple[str, bool, str]]:
+    """
+    Add watermarks to multiple files sequentially with progress tracking and retry mechanism.
+    Processes files one by one for safety, ensuring each file is completely closed and saved
+    before moving to the next.
 
     Args:
         file_pairs: List of (input_path, output_path) tuples
-        max_workers: Maximum number of parallel workers (default: CPU count)
+        max_workers: Ignored - sequential processing for safety (kept for API compatibility)
+        max_retries: Maximum number of retry attempts for failed files (default: 3)
 
     Returns:
         List of (input_path, success, error_message) tuples
     """
-    if max_workers is None:
-        max_workers = min(multiprocessing.cpu_count(), len(file_pairs))
+    all_results = []
+    remaining_pairs = file_pairs.copy()
 
-    # Determine method based on availability
-    method = "windows" if WINDOWS_AVAILABLE else "basic"
+    print(f"Starting sequential batch watermarking with {len(file_pairs)} files, max {max_retries} retries")
+    print("Note: Processing files one by one for safety (each file fully closed before next)")
 
-    # Prepare arguments for parallel processing
-    args_list = [(input_path, output_path, method) for input_path, output_path in file_pairs]
+    for retry_round in range(max_retries + 1):  # +1 for initial attempt
+        if not remaining_pairs:
+            break
 
-    results = []
+        round_desc = f"Round {retry_round + 1}" if retry_round > 0 else "Initial"
+        print(f"\n{round_desc}: Processing {len(remaining_pairs)} file(s) sequentially")
 
-    # Use ProcessPoolExecutor for CPU-bound tasks (Word COM operations)
-    with ProcessPoolExecutor(max_workers=max_workers) as executor:
-        # Submit all tasks
-        future_to_args = {
-            executor.submit(process_single_file, args): args
-            for args in args_list
-        }
+        round_results = []
 
-        # Process results with progress bar
-        with tqdm(total=len(file_pairs), desc="Adding watermarks", unit="file") as pbar:
-            for future in as_completed(future_to_args):
-                args = future_to_args[future]
+        # Process files sequentially for safety - wait for each to complete fully
+        with tqdm(total=len(remaining_pairs), desc=f"Round {retry_round + 1}", unit="file") as pbar:
+            for input_path, output_path in remaining_pairs:
                 try:
-                    result = future.result()
-                    results.append(result)
+                    # Process single file sequentially (waits for completion, close, and save)
+                    result = process_single_file_sequential((input_path, output_path))
+                    round_results.append(result)
 
                     input_path, success, error_msg = result
+
                     if success:
-                        pbar.set_postfix_str(f"✅ {os.path.basename(input_path)}")
+                        pbar.set_postfix_str(f"SUCCESS: {os.path.basename(input_path)}")
                     else:
-                        pbar.set_postfix_str(f"❌ {os.path.basename(input_path)}: {error_msg}")
+                        pbar.set_postfix_str(f"FAILED: {os.path.basename(input_path)}: {error_msg[:50]}...")
 
                 except Exception as exc:
-                    input_path = args[0]
-                    results.append((input_path, False, str(exc)))
-                    pbar.set_postfix_str(f"❌ {os.path.basename(input_path)}: {str(exc)}")
+                    result = (input_path, False, str(exc))
+                    round_results.append(result)
+                    pbar.set_postfix_str(f"FAILED: {os.path.basename(input_path)}: {str(exc)[:50]}...")
 
                 pbar.update(1)
 
-    return results
+        # Add successful results to final results
+        successful_this_round = [result for result in round_results if result[1]]
+        all_results.extend(successful_this_round)
+
+        # Check for failed files in this round
+        failed_this_round = [result for result in round_results if not result[1]]
+
+        if failed_this_round:
+            # Extract the file pairs that failed for retry
+            failed_paths = {result[0] for result in failed_this_round}
+            remaining_pairs = [pair for pair in remaining_pairs if pair[0] in failed_paths]
+
+            print(f"Round {retry_round + 1} completed: {len(successful_this_round)} successful, {len(failed_this_round)} failed")
+
+            if retry_round < max_retries:
+                print(f"Retrying {len(remaining_pairs)} failed file(s) in next round...")
+                # Add failed results with retry information
+                for result in failed_this_round:
+                    input_path, success, error_msg = result
+                    retry_msg = f"[Round {retry_round + 1} failed] {error_msg}"
+                    all_results.append((input_path, False, retry_msg))
+            else:
+                print(f"Maximum retries ({max_retries}) reached. {len(remaining_pairs)} files still failed.")
+                # Add final failed results
+                all_results.extend(failed_this_round)
+        else:
+            print(f"Round {retry_round + 1} completed: All {len(successful_this_round)} files processed successfully!")
+            break
+
+    # Final summary
+    successful_final = [result for result in all_results if result[1]]
+    failed_final = [result for result in all_results if not result[1]]
+
+    print(f"\nFinal Results:")
+    print(f"Total successful: {len(successful_final)}")
+    print(f"Total failed: {len(failed_final)}")
+    print(f"Total rounds: {retry_round + 1}")
+
+    return all_results
 
 
 def _add_watermarks_windows(input_path: str, output_path: str) -> None:

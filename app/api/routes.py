@@ -316,9 +316,9 @@ async def add_watermark(
 
             file_pairs.append((str(docx_file), str(output_file)))
 
-        # Process files in parallel with progress tracking
-        logger.info(f"Starting parallel watermark processing for {total_files} files")
-        results = add_watermarks_batch(file_pairs, max_workers=None)  # Auto-detect CPU count
+        # Process files in parallel with progress tracking and retry mechanism
+        logger.info(f"Starting parallel watermark processing for {total_files} files with retry mechanism")
+        results = add_watermarks_batch(file_pairs, max_workers=None, max_retries=3)  # Auto-detect CPU count, 3 retries
 
         # Process results
         success_count = 0

@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   document-converter:
-    image: trinq068/document-converter:beta
+    image: trinq068/document-converter:v1.1
     build:
       context: .
       dockerfile: Dockerfile
@@ -64,40 +64,6 @@ services:
       - document-converter-network
     profiles:
       - development
-
-  # Windows development service (requires Windows host in Windows container mode)
-  document-converter-dev-windows:
-    build:
-      context: .
-      dockerfile: Dockerfile.windows
-      target: development
-    container_name: document-converter-api-dev-windows
-    ports:
-      - "8001:8000"  # Different port to avoid conflict
-    environment:
-      - DEBUG=true
-      - LOG_LEVEL=DEBUG
-      - BASE_DIR=C:\app\data
-      - MAX_FILE_SIZE=52428800
-      - PANDOC_TIMEOUT=300
-    volumes:
-      - ./data:C:\app\data
-      - ./logs:C:\app\logs
-      - ./app:C:\app\app:ro
-      - ./html2md.py:C:\app\html2md.py:ro
-      - ./run.py:C:\app\run.py:ro
-    command: ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--reload-dir", "C:\\app\\app"]
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health/simple"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-    networks:
-      - document-converter-network
-    profiles:
-      - development-windows
 
   # Optional: Redis for task queue (for production scaling)
   redis:
